@@ -1,0 +1,12 @@
+{
+  "name": "leecher",
+  "version": "0.0.1",
+  "description": "leech da alfa",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "0xjro",
+  "license": "ISC"
+}
