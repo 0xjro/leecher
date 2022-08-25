@@ -1,34 +1,45 @@
+// Top level message ID to identify last message sent to relay channel
 let lastMessageId = null;
+let intervalId = null;
+let LAST_MESSAGE_POSITION = 2;
 
-async function getLatestMessage(start = 0) {
-  const latestMessages = document.querySelector("ol[data-list-id='chat-messages']").children;
-
-  let beginning = latestMessages.length - (2 + start);
-  const contents = latestMessages[beginning];
-
-  lastMessageId = contents.id;
+function _getTimestampAndReply(contents) {
   let timestamp = null;
+  let isReply = false;
   try {
+    // new message from new user
     timestamp = contents.children[0].children[0].children[1].children[1].children[0].attributes.datetime.value;
   } catch (e) {
     try {
+      // same user from previous message
       timestamp = contents.children[0].children[0].children[0].children[0].attributes.datetime.value;
     } catch (e) {
       // replies
+      isReply = true;
+      try {
+        timestamp = contents.children[0].children[1].children[1].children[1].children[0].attributes.datetime.value;
+      } catch (e) {
+        console.log('unknown error trying to get timestamp', contents);
+      }
     }
   }
+  return { timestamp, isReply };
+}
 
-  let messageDetails = contents.innerText.split('\n');
+function _getUsername(isReply, detailsList, messagesList) {
   let username = null;
-  if (messageDetails[1] === " — ") {
-    username = messageDetails[0];
-  } else if (messageDetails[1] == 'BOT') {
-    username = `${messageDetails[0]} - BOT`
+  if (isReply) {
+    username = `${detailsList[2]} replying to ${detailsList[0]}`;
+    detailsList = detailsList.slice(2);
+  } else if (detailsList[1] === " — ") {
+    username = detailsList[0];
+  } else if (detailsList[1] == 'BOT') {
+    username = `${detailsList[0]} - BOT`
   } else {
-    let start = beginning;
+    let start = lastMessageSent;
     start--;
     while(username === null) {
-      let previousMessage = latestMessages[start];
+      let previousMessage = messagesList[start];
       let previousMessageDetails = previousMessage.innerText.split('\n');
       if (previousMessageDetails[1] === " — ") {
         username = previousMessageDetails.shift();
@@ -36,40 +47,86 @@ async function getLatestMessage(start = 0) {
       start--;
     }
   }
+  return username;
+}
 
-  let message = messageDetails.slice(3).join('\n');
-  let readableTimestamp = `${new Date(timestamp).toLocaleDateString()} - ${new Date(timestamp).toLocaleTimeString()}`;
-
-
-  var information = { embeds: [{ title: username, description: message }], content: readableTimestamp};
+function _sendMessageToServer(name, messageList, messageTimestamp, callback) {
+  let message = messageList.slice(3).join('\n');
+  let readableTimestamp = `${new Date(messageTimestamp).toLocaleDateString()} - ${new Date(messageTimestamp).toLocaleTimeString()}`;
+  var information = { embeds: [{ title: name, description: message, footer: {text: readableTimestamp} }]};
 
   const relayServer = 'http://127.0.0.1:31337/leech';
 
-  await fetch(relayServer, {method: 'POST', body: JSON.stringify(information), headers: new Headers({'Content-type': 'application/json', 'accept': 'application/json'})});
+  fetch(
+    relayServer,
+    {
+      method: 'POST',
+      body: JSON.stringify(information),
+      headers: new Headers({'Content-type': 'application/json', 'accept': 'application/json'})
+    }
+  ).then(() => {
+    callback();
+  });
 }
 
-setInterval(async () => {
-  // debugger;
+function _getCurrentChannelMessages() {
+  return document.querySelector("ol[data-list-id='chat-messages']").children;
+}
+
+function getLatestMessage(start = LAST_MESSAGE_POSITION, cb = () => {}) {
+  const currentChannelMessages = _getCurrentChannelMessages();
+  let lastMessageSent = currentChannelMessages.length - start;
+  const lastMessageContents = currentChannelMessages[lastMessageSent];
+
+  lastMessageId = lastMessageContents.id;
+  const { timestamp, isReply } = _getTimestampAndReply(lastMessageContents);
+
+  const messageDetailsList = lastMessageContents.innerText.split('\n');
+  // `innerText` has no context of emoji or uploaded picture
+  if (messageDetailsList.length === 3) {
+    messageDetailsList.push('emoji and/or picture');
+  }
+  
+  const username = _getUsername(isReply, messageDetailsList, currentChannelMessages)
+  _sendMessageToServer(username, messageDetailsList, timestamp, cb);
+}
+
+async function leeeeeech() {
   if (!lastMessageId) {
-    return getLatestMessage();
-  } 
-  const latestMessages = document.querySelector("ol[data-list-id='chat-messages']").children;
-  let lastMessage = latestMessages[latestMessages.length - 2];
+    getLatestMessage(LAST_MESSAGE_POSITION);
+    intervalId = setTimeout(leeeeeech, 5000);
+    return;
+  }
+  const currentChannelMessages = _getCurrentChannelMessages();
+  let lastMessage = currentChannelMessages[currentChannelMessages.length - LAST_MESSAGE_POSITION];
   if (lastMessage.id == lastMessageId) {
+    intervalId = setTimeout(leeeeeech, 5000);
     return;
   } else {
-    let count = 0;
-    const latestMessages = document.querySelector("ol[data-list-id='chat-messages']").children;
-    let start = latestMessages.length - 3;
-    let contents = latestMessages[start];
+    clearInterval(intervalId);
+    let count = 2;
+    const currentChannelMessages = document.querySelector("ol[data-list-id='chat-messages']").children;
+    let start = currentChannelMessages.length - 3;
+    let contents = currentChannelMessages[start];
     while (contents.id !== lastMessageId) {
-      contents = latestMessages[start];
+      contents = currentChannelMessages[start];
       count++;
       start--;
     }
-    while (count >= 0) {
-      await getLatestMessage(count);
-      count--;
+
+    const runLatestMessage = () => {
+      if (count >= 2) {
+        getLatestMessage(count, () => {
+          count--;
+          setTimeout(runLatestMessage, 1000);
+          // runLatestMessage();
+        });
+      } else {
+        intervalId = setTimeout(leeeeeech, 5000);
+      }
     }
+    runLatestMessage();
   }
-}, 5000);
+};
+
+leeeeeech();
