@@ -7,6 +7,60 @@ const COOLDOWN_INTERVAL_MS = 5000;
 // 1 second throttle for sending messages to webhook
 const COOLDOWN_THROTTLE_MS = 1000;
 
+leeeeeech();
+
+function leeeeeech() {
+  if (!lastMessageId) {
+    getLatestMessage(LAST_MESSAGE_POSITION);
+    intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
+    return;
+  }
+  const currentChannelMessages = _getCurrentChannelMessages();
+  let positionToCheck = currentChannelMessages.length - LAST_MESSAGE_POSITION;
+  let lastMessage = currentChannelMessages[positionToCheck];
+  // Last message was already leeched
+  if (lastMessage.id == lastMessageId) {
+    intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
+    return;
+  // New message(s) found
+  } else {
+    let startOfNewMessages = _findStartOfNewMessages(currentChannelMessages, positionToCheck);
+    // Recursive function to throttle messages sent to webhook
+    const runLatestMessage = () => {
+      if (startOfNewMessages >= LAST_MESSAGE_POSITION) {
+        getLatestMessage(startOfNewMessages, () => {
+          startOfNewMessages--;
+          setTimeout(runLatestMessage, COOLDOWN_THROTTLE_MS);
+        });
+      } else {
+        intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
+      }
+    }
+    runLatestMessage();
+  }
+};
+
+function getLatestMessage(start = LAST_MESSAGE_POSITION, cb = () => {}) {
+  const currentChannelMessages = _getCurrentChannelMessages();
+  let lastMessageSent = currentChannelMessages.length - start;
+  const lastMessageContents = currentChannelMessages[lastMessageSent];
+
+  lastMessageId = lastMessageContents.id;
+  const { timestamp, isReply, skip } = _getTimestampAndReply(lastMessageContents);
+
+  // new messages bar ------------------------
+  if (skip) return cb();
+
+  const messageDetailsList = lastMessageContents.innerText.split('\n');
+  // `innerText` has no context of emoji or uploaded picture
+  if (messageDetailsList.length === 3) {
+    messageDetailsList.push('emoji and/or picture');
+  }
+  
+  const username = _getUsername(isReply, messageDetailsList, currentChannelMessages, lastMessageSent);
+  _sendMessageToServer(username, messageDetailsList, timestamp, cb);
+}
+
 function _getTimestampAndReply(contents) {
   let timestamp = null;
   let isReply = false;
@@ -81,27 +135,6 @@ function _getCurrentChannelMessages() {
   return document.querySelector("ol[data-list-id='chat-messages']").children;
 }
 
-function getLatestMessage(start = LAST_MESSAGE_POSITION, cb = () => {}) {
-  const currentChannelMessages = _getCurrentChannelMessages();
-  let lastMessageSent = currentChannelMessages.length - start;
-  const lastMessageContents = currentChannelMessages[lastMessageSent];
-
-  lastMessageId = lastMessageContents.id;
-  const { timestamp, isReply, skip } = _getTimestampAndReply(lastMessageContents);
-
-  // new messages bar ------------------------
-  if (skip) return cb();
-
-  const messageDetailsList = lastMessageContents.innerText.split('\n');
-  // `innerText` has no context of emoji or uploaded picture
-  if (messageDetailsList.length === 3) {
-    messageDetailsList.push('emoji and/or picture');
-  }
-  
-  const username = _getUsername(isReply, messageDetailsList, currentChannelMessages, lastMessageSent);
-  _sendMessageToServer(username, messageDetailsList, timestamp, cb);
-}
-
 function _findStartOfNewMessages(channelMessages, position) {
   clearInterval(intervalId);
   let startOfNewMessages = LAST_MESSAGE_POSITION;
@@ -120,36 +153,3 @@ function _findStartOfNewMessages(channelMessages, position) {
   }
   return startOfNewMessages;
 }
-
-async function leeeeeech() {
-  if (!lastMessageId) {
-    getLatestMessage(LAST_MESSAGE_POSITION);
-    intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
-    return;
-  }
-  const currentChannelMessages = _getCurrentChannelMessages();
-  let positionToCheck = currentChannelMessages.length - LAST_MESSAGE_POSITION;
-  let lastMessage = currentChannelMessages[positionToCheck];
-  // Last message was already leeched
-  if (lastMessage.id == lastMessageId) {
-    intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
-    return;
-  // New message(s) found
-  } else {
-    let startOfNewMessages = _findStartOfNewMessages(currentChannelMessages, positionToCheck);
-    // Recursive function to throttle messages sent to webhook
-    const runLatestMessage = () => {
-      if (startOfNewMessages >= LAST_MESSAGE_POSITION) {
-        getLatestMessage(startOfNewMessages, () => {
-          startOfNewMessages--;
-          setTimeout(runLatestMessage, COOLDOWN_THROTTLE_MS);
-        });
-      } else {
-        intervalId = setTimeout(leeeeeech, COOLDOWN_INTERVAL_MS);
-      }
-    }
-    runLatestMessage();
-  }
-};
-
-leeeeeech();
